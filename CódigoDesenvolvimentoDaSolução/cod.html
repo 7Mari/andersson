@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Chamados Técnicos</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="container header-content">
+            <div class="logo">HelpDesk</div>
+            <div class="user-info">
+                <span id="userName">João Silva</span>
+                <div class="user-avatar" id="userAvatar">JS</div>
+                <button id="btnLogout" class="btn-logout">Sair</button>
+            </div>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="main-content">
+            <aside class="sidebar">
+                <ul class="sidebar-menu">
+                    <li><a href="#" class="active" id="btnTickets"><i class="fas fa-ticket-alt"></i> Meus Chamados</a></li>
+                    <li><a href="#" id="btnDashboard"><i class="fas fa-chart-bar"></i> Dashboard</a></li>
+                    <li><a href="#" id="btnClients"><i class="fas fa-users"></i> Clientes</a></li>
+                    <li><a href="#" id="btnSettings"><i class="fas fa-cog"></i> Configurações</a></li>
+                </ul>
+                
+                <a href="#" class="btn-new-ticket" id="btnNewTicket"><i class="fas fa-plus"></i> Novo Chamado</a>
+            </aside>
+            
+            <main class="tickets-area" id="mainContent">
+                <!-- Conteúdo dinâmico será carregado aqui -->
+            </main>
+        </div>
+    </div>
+    
+    <!-- Modal para novo chamado -->
+    <div class="modal" id="newTicketModal">
+        <div class="modal-content">
+            <span class="close-modal" id="closeModal">&times;</span>
+            <h3 class="modal-title">Abrir Novo Chamado</h3>
+            
+            <form id="ticketForm">
+                <div class="form-group">
+                    <label for="ticketTitle">Título</label>
+                    <input type="text" id="ticketTitle" placeholder="Descreva o problema resumidamente" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="ticketCategory">Categoria</label>
+                    <select id="ticketCategory" required>
+                        <option value="">Selecione uma categoria</option>
+                        <option value="hardware">Hardware</option>
+                        <option value="software">Software</option>
+                        <option value="network">Rede</option>
+                        <option value="other">Outros</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="ticketPriority">Prioridade</label>
+                    <select id="ticketPriority" required>
+                        <option value="low">Baixa</option>
+                        <option value="medium" selected>Média</option>
+                        <option value="high">Alta</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="ticketDescription">Descrição</label>
+                    <textarea id="ticketDescription" placeholder="Descreva o problema em detalhes..." required></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="ticketFiles">Anexos (Máx. 5MB)</label>
+                    <input type="file" id="ticketFiles" multiple>
+                    <div id="filePreview" class="file-preview"></div>
+                </div>
+                
+                <button type="submit" class="btn-submit">Abrir Chamado</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal para visualização de chamado -->
+    <div class="modal" id="viewTicketModal">
+        <div class="modal-content large-modal">
+            <span class="close-modal" id="closeViewModal">&times;</span>
+            <div id="ticketDetails">
+                <!-- Detalhes do chamado serão carregados aqui -->
+            </div>
+            
+            <div class="messages-section">
+                <h3><i class="fas fa-comments"></i> Mensagens</h3>
+                <div id="messagesList" class="messages-list"></div>
+                
+                <form id="messageForm">
+                    <div class="form-group">
+                        <textarea id="messageContent" placeholder="Digite sua mensagem..." required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="messageFiles">Anexar arquivos</label>
+                        <input type="file" id="messageFiles" multiple>
+                        <div id="messageFilePreview" class="file-preview"></div>
+                    </div>
+                    <button type="submit" class="btn-submit">Enviar Mensagem</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal de login -->
+    <div class="modal" id="loginModal" style="display: flex;">
+        <div class="modal-content">
+            <h3 class="modal-title"><i class="fas fa-sign-in-alt"></i> Login</h3>
+            
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="loginEmail">Email</label>
+                    <input type="email" id="loginEmail" placeholder="Seu email" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="loginPassword">Senha</label>
+                    <input type="password" id="loginPassword" placeholder="Sua senha" required>
+                </div>
+                
+                <button type="submit" class="btn-submit">Entrar</button>
+                <p class="register-link">Não tem uma conta? <a href="#" id="btnShowRegister">Registre-se</a></p>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal de registro -->
+    <div class="modal" id="registerModal">
+        <div class="modal-content">
+            <span class="close-modal" id="closeRegisterModal">&times;</span>
+            <h3 class="modal-title"><i class="fas fa-user-plus"></i> Registrar</h3>
+            
+            <form id="registerForm">
+                <div class="form-group">
+                    <label for="registerName">Nome</label>
+                    <input type="text" id="registerName" placeholder="Seu nome completo" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="registerEmail">Email</label>
+                    <input type="email" id="registerEmail" placeholder="Seu email" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="registerPassword">Senha</label>
+                    <input type="password" id="registerPassword" placeholder="Crie uma senha" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="registerConfirmPassword">Confirmar Senha</label>
+                    <input type="password" id="registerConfirmPassword" placeholder="Confirme sua senha" required>
+                </div>
+                
+                <button type="submit" class="btn-submit">Registrar</button>
+                <p class="login-link">Já tem uma conta? <a href="#" id="btnShowLogin">Faça login</a></p>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
