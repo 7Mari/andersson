@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Chamados Técnicos</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div class="container" id="loginContainer">
+        <header>
+            <h1>Sistema de Chamados Técnicos</h1>
+        </header>
+        
+        <main>
+            <div class="login-box" id="loginBox">
+                <h2>Login</h2>
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="loginEmail">E-mail:</label>
+                        <input type="email" id="loginEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="loginSenha">Senha:</label>
+                        <input type="password" id="loginSenha" required>
+                    </div>
+                    <button type="submit" class="btn">Entrar</button>
+                </form>
+                <p>Não tem uma conta? <a href="#" id="showRegister">Cadastre-se</a></p>
+                <div id="loginMessage" class="message"></div>
+            </div>
+
+            <div class="login-box" id="registerBox" style="display: none;">
+                <h2>Cadastro de Usuário</h2>
+                <form id="registerForm">
+                    <div class="form-group">
+                        <label for="registerNome">Nome Completo:</label>
+                        <input type="text" id="registerNome" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="registerEmail">E-mail:</label>
+                        <input type="email" id="registerEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="registerSenha">Senha:</label>
+                        <input type="password" id="registerSenha" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="registerTipo">Tipo de Usuário:</label>
+                        <select id="registerTipo" required>
+                            <option value="">Selecione...</option>
+                            <option value="cliente">Cliente</option>
+                            <option value="tecnico">Técnico</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn">Cadastrar</button>
+                </form>
+                <p>Já tem uma conta? <a href="#" id="showLogin">Faça login</a></p>
+                <div id="registerMessage" class="message"></div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Sistema de Chamados Técnicos &copy; 2023</p>
+        </footer>
+    </div>
+
+    <div class="container" id="dashboardContainer" style="display: none;">
+        <header>
+            <h1>Sistema de Chamados Técnicos</h1>
+            <div class="user-info">
+                <span id="userNameDisplay">Usuário</span>
+                <button id="logoutBtn" class="btn">Sair</button>
+            </div>
+        </header>
+        
+        <nav>
+            <ul>
+                <li><a href="#" class="nav-link active" data-section="abrir-chamado">Abrir Chamado</a></li>
+                <li><a href="#" class="nav-link" data-section="meus-chamados">Meus Chamados</a></li>
+                <li><a href="#" class="nav-link" data-section="todos-chamados" id="todosChamadosLink">Todos Chamados</a></li>
+            </ul>
+        </nav>
+        
+        <main>
+            <!-- Seção para abrir novo chamado -->
+            <section id="abrir-chamado" class="content-section active">
+                <h2>Abrir Novo Chamado</h2>
+                <form id="novoChamadoForm">
+                    <div class="form-group">
+                        <label for="chamadoTitulo">Título:</label>
+                        <input type="text" id="chamadoTitulo" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="chamadoDescricao">Descrição:</label>
+                        <textarea id="chamadoDescricao" rows="5" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="chamadoUrgencia">Nível de Urgência:</label>
+                        <select id="chamadoUrgencia" required>
+                            <option value="baixa">Baixa</option>
+                            <option value="media">Média</option>
+                            <option value="alta">Alta</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn">Abrir Chamado</button>
+                </form>
+                <div id="chamadoMessage" class="message"></div>
+            </section>
+            
+            <!-- Seção para listar chamados do usuário -->
+            <section id="meus-chamados" class="content-section">
+                <h2>Meus Chamados</h2>
+                <div class="filtros">
+                    <select id="filtroStatus">
+                        <option value="todos">Todos</option>
+                        <option value="aberto">Abertos</option>
+                        <option value="andamento">Em Andamento</option>
+                        <option value="resolvido">Resolvidos</option>
+                    </select>
+                </div>
+                <div id="listaMeusChamados" class="chamados-list">
+                    <!-- Chamados serão carregados aqui via JavaScript -->
+                </div>
+            </section>
+            
+            <!-- Seção para técnicos verem todos chamados -->
+            <section id="todos-chamados" class="content-section">
+                <h2>Todos os Chamados</h2>
+                <div class="filtros">
+                    <select id="filtroStatusTodos">
+                        <option value="todos">Todos</option>
+                        <option value="aberto">Abertos</option>
+                        <option value="andamento">Em Andamento</option>
+                        <option value="resolvido">Resolvidos</option>
+                    </select>
+                </div>
+                <div id="listaTodosChamados" class="chamados-list">
+                    <!-- Chamados serão carregados aqui via JavaScript -->
+                </div>
+            </section>
+            
+            <!-- Modal para interação com chamado -->
+            <div id="chamadoModal" class="modal">
+                <div class="modal-content">
+                    <span class="close-modal">&times;</span>
+                    <h2 id="modalTitulo">Detalhes do Chamado</h2>
+                    <div id="modalConteudo">
+                        <!-- Conteúdo será carregado aqui via JavaScript -->
+                    </div>
+                    <div id="modalInteracao" class="modal-interacao">
+                        <!-- Formulário de interação será carregado aqui -->
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+    </div>
+
+    <script src="script.js"></script>
+    </body>
+</html>

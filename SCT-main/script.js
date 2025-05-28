@@ -1,0 +1,694 @@
+// Banco de dados simulado
+let usuariosDB = JSON.parse(localStorage.getItem('usuariosDB')) || [];
+let chamadosDB = JSON.parse(localStorage.getItem('chamadosDB')) || [];
+let usuarioLogado = null;
+let interacaoEditando = null;
+
+// Elementos da página de login/cadastro
+const loginContainer = document.getElementById('loginContainer');
+const loginBox = document.getElementById('loginBox');
+const registerBox = document.getElementById('registerBox');
+const showRegister = document.getElementById('showRegister');
+const showLogin = document.getElementById('showLogin');
+const loginForm = document.getElementById('loginForm');
+const registerForm = document.getElementById('registerForm');
+const loginMessage = document.getElementById('loginMessage');
+const registerMessage = document.getElementById('registerMessage');
+
+// Elementos do dashboard
+const dashboardContainer = document.getElementById('dashboardContainer');
+const userNameDisplay = document.getElementById('userNameDisplay');
+const logoutBtn = document.getElementById('logoutBtn');
+const todosChamadosLink = document.getElementById('todosChamadosLink');
+
+// Eventos de navegação entre login e cadastro
+showRegister.addEventListener('click', (e) => {
+    e.preventDefault();
+    loginBox.style.display = 'none';
+    registerBox.style.display = 'block';
+});
+
+showLogin.addEventListener('click', (e) => {
+    e.preventDefault();
+    registerBox.style.display = 'none';
+    loginBox.style.display = 'block';
+});
+
+// Evento de login
+loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    const email = document.getElementById('loginEmail').value.trim();
+    const senha = document.getElementById('loginSenha').value.trim();
+    
+    if (!email || !senha) {
+        showMessage(loginMessage, 'Por favor, preencha todos os campos', 'error');
+        return;
+    }
+    
+    const usuario = usuariosDB.find(user => user.email === email && user.senha === senha);
+    
+    if (usuario) {
+        usuarioLogado = usuario;
+        sessionStorage.setItem('usuarioLogado', JSON.stringify(usuario));
+        entrarNoDashboard();
+    } else {
+        showMessage(loginMessage, 'E-mail ou senha incorretos', 'error');
+    }
+});
+
+// Evento de cadastro
+registerForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    
+    const nome = document.getElementById('registerNome').value.trim();
+    const email = document.getElementById('registerEmail').value.trim();
+    const senha = document.getElementById('registerSenha').value.trim();
+    const tipo = document.getElementById('registerTipo').value;
+    
+    if (!nome || !email || !senha || !tipo) {
+        showMessage(registerMessage, 'Por favor, preencha todos os campos', 'error');
+        return;
+    }
+    
+    const emailExiste = usuariosDB.some(user => user.email === email);
+    
+    if (emailExiste) {
+        showMessage(registerMessage, 'Este e-mail já está cadastrado', 'error');
+        return;
+    }
+    
+    const novoUsuario = {
+        id: Date.now().toString(),
+        nome,
+        email,
+        senha,
+        tipo
+    };
+    
+    usuariosDB.push(novoUsuario);
+    localStorage.setItem('usuariosDB', JSON.stringify(usuariosDB));
+    
+    showMessage(registerMessage, 'Cadastro realizado com sucesso!', 'success');
+    registerForm.reset();
+    
+    // Mostrar formulário de login após cadastro
+    setTimeout(() => {
+        registerBox.style.display = 'none';
+        loginBox.style.display = 'block';
+        registerMessage.textContent = '';
+        registerMessage.className = 'message';
+    }, 2000);
+});
+
+// Função para entrar no dashboard
+function entrarNoDashboard() {
+    loginContainer.style.display = 'none';
+    dashboardContainer.style.display = 'block';
+    
+    // Mostrar nome do usuário
+    userNameDisplay.textContent = usuarioLogado.nome;
+    
+    // Se for cliente, ocultar link "Todos Chamados"
+    if (usuarioLogado.tipo === 'cliente') {
+        todosChamadosLink.style.display = 'none';
+    } else {
+        todosChamadosLink.style.display = 'block';
+    }
+    
+    // Carregar chamados
+    carregarChamados();
+}
+
+// Evento de logout
+logoutBtn.addEventListener('click', () => {
+    sessionStorage.removeItem('usuarioLogado');
+    usuarioLogado = null;
+    dashboardContainer.style.display = 'none';
+    loginContainer.style.display = 'block';
+    loginForm.reset();
+});
+
+// Verificar se há usuário logado ao carregar a página
+document.addEventListener('DOMContentLoaded', () => {
+    const usuarioSalvo = sessionStorage.getItem('usuarioLogado');
+    
+    if (usuarioSalvo) {
+        usuarioLogado = JSON.parse(usuarioSalvo);
+        entrarNoDashboard();
+    }
+});
+
+// Navegação entre seções do dashboard
+document.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+        e.preventDefault();
+        
+        // Remover classe active de todos os links
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+        
+        // Adicionar classe active ao link clicado
+        link.classList.add('active');
+        
+        // Esconder todas as seções
+        document.querySelectorAll('.content-section').forEach(section => {
+            section.classList.remove('active');
+        });
+        
+        // Mostrar seção correspondente
+        const sectionId = link.getAttribute('data-section');
+        document.getElementById(sectionId).classList.add('active');
+        
+        // Recarregar chamados quando mudar de seção
+        if (sectionId === 'meus-chamados' || sectionId === 'todos-chamados') {
+            carregarChamados();
+        }
+    });
+});
+
+// Função para mostrar mensagens
+function showMessage(element, message, type) {
+    element.textContent = message;
+    element.className = 'message ' + type;
+    
+    setTimeout(() => {
+        element.textContent = '';
+        element.className = 'message';
+    }, 5000);
+}
+
+// ========== LÓGICA DE CHAMADOS ========== //
+
+// Elementos do dashboard
+const novoChamadoForm = document.getElementById('novoChamadoForm');
+const listaMeusChamados = document.getElementById('listaMeusChamados');
+const listaTodosChamados = document.getElementById('listaTodosChamados');
+const chamadoModal = document.getElementById('chamadoModal');
+const closeModal = document.querySelector('.close-modal');
+
+// Evento para abrir novo chamado
+if (novoChamadoForm) {
+    novoChamadoForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const titulo = document.getElementById('chamadoTitulo').value.trim();
+        const descricao = document.getElementById('chamadoDescricao').value.trim();
+        const urgencia = document.getElementById('chamadoUrgencia').value;
+        
+        if (!titulo || !descricao) {
+            showMessage(document.getElementById('chamadoMessage'), 'Por favor, preencha todos os campos', 'error');
+            return;
+        }
+        
+        const novoChamado = {
+            id: Date.now().toString(),
+            titulo,
+            descricao,
+            urgencia,
+            status: 'aberto',
+            cliente: {
+                id: usuarioLogado.id,
+                nome: usuarioLogado.nome,
+                email: usuarioLogado.email
+            },
+            tecnico: null,
+            dataAbertura: new Date().toISOString(),
+            interacoes: []
+        };
+        
+        chamadosDB.push(novoChamado);
+        localStorage.setItem('chamadosDB', JSON.stringify(chamadosDB));
+        
+        showMessage(document.getElementById('chamadoMessage'), 'Chamado aberto com sucesso!', 'success');
+        novoChamadoForm.reset();
+        carregarChamados();
+    });
+}
+
+// Carregar chamados
+function carregarChamados() {
+    if (!usuarioLogado) return;
+    
+    // Verificar qual seção está ativa
+    const meusChamadosAtivo = document.getElementById('meus-chamados').classList.contains('active');
+    const todosChamadosAtivo = document.getElementById('todos-chamados').classList.contains('active');
+    
+    if (meusChamadosAtivo && listaMeusChamados) {
+        aplicarFiltroMeusChamados();
+    }
+    
+    if (todosChamadosAtivo && listaTodosChamados && usuarioLogado.tipo === 'tecnico') {
+        aplicarFiltroTodosChamados();
+    }
+}
+
+// Função simplificada para aplicar filtro aos meus chamados
+function aplicarFiltroMeusChamados() {
+    if (!usuarioLogado || !listaMeusChamados) return;
+    
+    const filtroStatus = document.getElementById('filtroStatus').value;
+    
+    // Filtrar chamados do usuário logado
+    let chamadosFiltrados = chamadosDB.filter(chamado => chamado.cliente.id === usuarioLogado.id);
+    
+    // Aplicar filtro de status se não for "todos"
+    if (filtroStatus !== 'todos') {
+        chamadosFiltrados = chamadosFiltrados.filter(chamado => chamado.status === filtroStatus);
+    }
+    
+    // Ordenar por data (mais recente primeiro)
+    chamadosFiltrados.sort((a, b) => new Date(b.dataAbertura) - new Date(a.dataAbertura));
+    
+    // Renderizar chamados
+    renderizarChamados(listaMeusChamados, chamadosFiltrados);
+}
+
+// Função simplificada para aplicar filtro a todos os chamados (para técnicos)
+function aplicarFiltroTodosChamados() {
+    if (!usuarioLogado || usuarioLogado.tipo !== 'tecnico' || !listaTodosChamados) return;
+    
+    const filtroStatus = document.getElementById('filtroStatusTodos').value;
+    
+    // Começar com todos os chamados
+    let chamadosFiltrados = [...chamadosDB];
+    
+    // Aplicar filtro de status se não for "todos"
+    if (filtroStatus !== 'todos') {
+        chamadosFiltrados = chamadosFiltrados.filter(chamado => chamado.status === filtroStatus);
+    }
+    
+    // Ordenar por data (mais recente primeiro)
+    chamadosFiltrados.sort((a, b) => new Date(b.dataAbertura) - new Date(a.dataAbertura));
+    
+    // Renderizar chamados
+    renderizarChamados(listaTodosChamados, chamadosFiltrados);
+}
+
+// Função para renderizar chamados em uma lista
+function renderizarChamados(elementoLista, chamados) {
+    if (!elementoLista) return;
+    
+    if (chamados.length === 0) {
+        elementoLista.innerHTML = '<p class="no-results">Nenhum chamado encontrado</p>';
+        return;
+    }
+    
+    elementoLista.innerHTML = chamados.map(chamado => criarCardChamado(chamado)).join('');
+    
+    // Adicionar eventos de clique aos cards
+    elementoLista.querySelectorAll('.chamado-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const chamadoId = card.getAttribute('data-id');
+            abrirModalChamado(chamadoId);
+        });
+    });
+}
+
+// Criar card de chamado
+function criarCardChamado(chamado) {
+    const statusClass = `status-${chamado.status}`;
+    const urgenciaText = chamado.urgencia.charAt(0).toUpperCase() + chamado.urgencia.slice(1);
+    const dataFormatada = new Date(chamado.dataAbertura).toLocaleDateString();
+    
+    return `
+        <div class="chamado-card" data-id="${chamado.id}">
+            <div class="chamado-header">
+                <span class="chamado-titulo">${chamado.titulo}</span>
+                <span class="chamado-status ${statusClass}">${formatarStatus(chamado.status)}</span>
+            </div>
+            <div class="chamado-urgencia">Urgência: ${urgenciaText}</div>
+            <div class="chamado-descricao">${chamado.descricao.substring(0, 100)}${chamado.descricao.length > 100 ? '...' : ''}</div>
+            <div class="chamado-data">Aberto em: ${dataFormatada}</div>
+        </div>
+    `;
+}
+
+// Formatador de status
+function formatarStatus(status) {
+    const statusMap = {
+        aberto: 'Aberto',
+        andamento: 'Em Andamento',
+        resolvido: 'Resolvido'
+    };
+    return statusMap[status] || status;
+}
+
+function formatarTipoUsuario(tipo) {
+    const tipos = {
+        tecnico: 'técnico',
+        cliente: 'cliente'
+    };
+    return tipos[tipo] || tipo;
+}
+
+// Função para remover uma interação
+function removerInteracao(chamadoId, interacaoIndex) {
+    const chamadoIndex = chamadosDB.findIndex(c => c.id === chamadoId);
+    if (chamadoIndex === -1) return false;
+
+    const chamado = chamadosDB[chamadoIndex];
+    if (interacaoIndex < 0 || interacaoIndex >= chamado.interacoes.length) return false;
+
+    const interacao = chamado.interacoes[interacaoIndex];
+    
+    // Verificar permissões
+    const podeRemover = usuarioLogado.tipo === 'tecnico' || 
+                      (usuarioLogado.id === interacao.autor.id && usuarioLogado.tipo === interacao.autor.tipo);
+    
+    if (!podeRemover) {
+        alert('Você não tem permissão para remover esta interação');
+        return false;
+    }
+
+    // Remover a interação
+    chamado.interacoes.splice(interacaoIndex, 1);
+    localStorage.setItem('chamadosDB', JSON.stringify(chamadosDB));
+    
+    // Atualizar o modal
+    abrirModalChamado(chamadoId);
+    return true;
+}
+
+// Função para editar uma interação
+function editarInteracao(chamadoId, interacaoIndex) {
+    const chamado = chamadosDB.find(c => c.id === chamadoId);
+    if (!chamado) return false;
+
+    if (interacaoIndex < 0 || interacaoIndex >= chamado.interacoes.length) return false;
+
+    const interacao = chamado.interacoes[interacaoIndex];
+    
+    // Verificar permissões
+    const podeEditar = usuarioLogado.id === interacao.autor.id && usuarioLogado.tipo === interacao.autor.tipo;
+    
+    if (!podeEditar) {
+        alert('Você só pode editar suas próprias interações');
+        return false;
+    }
+
+    // Armazenar a interação que está sendo editada
+    interacaoEditando = { chamadoId, interacaoIndex };
+    
+    // Preencher o formulário com a mensagem atual
+    document.getElementById('interacaoMensagem').value = interacao.mensagem;
+    
+    // Alterar o botão para "Atualizar"
+    const form = document.getElementById('interacaoChamadoForm');
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.textContent = 'Atualizar';
+    
+    // Remover o listener antigo se existir
+    form.replaceWith(form.cloneNode(true));
+    
+    // Adicionar novo listener
+    document.getElementById('interacaoChamadoForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        atualizarInteracao();
+    });
+    
+    return true;
+}
+
+// Função para atualizar uma interação
+function atualizarInteracao() {
+    if (!interacaoEditando) return false;
+    
+    const { chamadoId, interacaoIndex } = interacaoEditando;
+    const chamado = chamadosDB.find(c => c.id === chamadoId);
+    if (!chamado) return false;
+
+    const mensagem = document.getElementById('interacaoMensagem').value.trim();
+    if (!mensagem) return false;
+
+    // Atualizar a mensagem
+    chamado.interacoes[interacaoIndex].mensagem = mensagem;
+    chamado.interacoes[interacaoIndex].data = new Date().toISOString(); // Atualizar data
+    
+    localStorage.setItem('chamadosDB', JSON.stringify(chamadosDB));
+    
+    // Resetar o estado de edição
+    interacaoEditando = null;
+    
+    // Atualizar o modal
+    abrirModalChamado(chamadoId);
+    return true;
+}
+
+// Abrir modal com detalhes do chamado
+function abrirModalChamado(chamadoId) {
+    const chamado = chamadosDB.find(c => c.id === chamadoId);
+    if (!chamado) return;
+    
+    document.getElementById('modalTitulo').textContent = chamado.titulo;
+    
+    const urgenciaText = chamado.urgencia.charAt(0).toUpperCase() + chamado.urgencia.slice(1);
+    const dataFormatada = new Date(chamado.dataAbertura).toLocaleString();
+    
+    document.getElementById('modalConteudo').innerHTML = `
+        <div class="chamado-info">
+            <p><strong>Status:</strong> <span class="status-${chamado.status}">${formatarStatus(chamado.status)}</span></p>
+            <p><strong>Urgência:</strong> ${urgenciaText}</p>
+            <p><strong>Aberto em:</strong> ${dataFormatada}</p>
+            <p><strong>Cliente:</strong> ${chamado.cliente.nome}</p>
+            ${chamado.tecnico ? `<p><strong>Técnico responsável:</strong> ${chamado.tecnico.nome}</p>` : ''}
+        </div>
+        <div class="chamado-descricao-completa">
+            <h3>Descrição completa</h3>
+            <p>${chamado.descricao}</p>
+        </div>
+        <div class="chamado-interacoes">
+            <h3>Histórico de Interações</h3>
+            ${chamado.interacoes.length > 0 ? 
+                chamado.interacoes.map((interacao, index) => `
+                    <div class="interacao-item">
+                        <div class="interacao-header">
+                            <div class="interacao-autor ${interacao.autor.tipo === 'tecnico' ? 'interacao-tecnico' : ''}">
+                                ${interacao.autor.nome} (${formatarTipoUsuario(interacao.autor.tipo)})
+                            </div>
+                            <div class="interacao-data">
+                                ${new Date(interacao.data).toLocaleString()}
+                            </div>
+                            ${(usuarioLogado.id === interacao.autor.id && usuarioLogado.tipo === interacao.autor.tipo) ? 
+                                `<div class="interacao-acoes">
+                                    <button class="btn-editar-interacao" data-chamado-id="${chamadoId}" data-interacao-index="${index}">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn-remover-interacao" data-chamado-id="${chamadoId}" data-interacao-index="${index}">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>` : ''}
+                        </div>
+                        <div class="interacao-mensagem">
+                            ${interacao.mensagem}
+                        </div>
+                    </div>
+                `).join('') : 
+                '<p>Nenhuma interação registrada ainda.</p>'}
+        </div>
+    `;
+    
+    // Mostrar modal
+    chamadoModal.style.display = 'flex';
+
+    // Adicionar eventos aos botões de remoção
+    document.querySelectorAll('.btn-remover-interacao').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const chamadoId = btn.getAttribute('data-chamado-id');
+            const interacaoIndex = parseInt(btn.getAttribute('data-interacao-index'));
+            
+            if (confirm('Tem certeza que deseja remover esta interação?')) {
+                removerInteracao(chamadoId, interacaoIndex);
+            }
+        });
+    });
+
+    // Adicionar eventos aos botões de edição
+    document.querySelectorAll('.btn-editar-interacao').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const chamadoId = btn.getAttribute('data-chamado-id');
+            const interacaoIndex = parseInt(btn.getAttribute('data-interacao-index'));
+            editarInteracao(chamadoId, interacaoIndex);
+        });
+    });
+
+    // Limpar área de interação
+    document.getElementById('modalInteracao').innerHTML = '';
+
+    // Se for técnico
+    if (usuarioLogado.tipo === 'tecnico') {
+        if (chamado.status === 'aberto') {
+            // Botão para assumir chamado
+            document.getElementById('modalInteracao').innerHTML = `
+                <form id="assumirChamadoForm">
+                    <button type="submit" class="btn">Assumir Chamado</button>
+                </form>
+            `;
+            
+            document.getElementById('assumirChamadoForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                assumirChamado(chamadoId);
+            });
+        } else if (chamado.status === 'andamento' && chamado.tecnico.id === usuarioLogado.id) {
+            // Área para interação e resolução
+            document.getElementById('modalInteracao').innerHTML = `
+                <form id="interacaoChamadoForm">
+                    <div class="form-group">
+                        <label for="interacaoMensagem">Adicionar Interação:</label>
+                        <textarea id="interacaoMensagem" rows="3" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <button type="submit" class="btn">Enviar Interação</button>
+                        <button type="button" id="resolverChamadoBtn" class="btn">Resolver Chamado</button>
+                    </div>
+                </form>
+            `;
+            
+            document.getElementById('interacaoChamadoForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const mensagem = document.getElementById('interacaoMensagem').value.trim();
+                if (mensagem) {
+                    if (interacaoEditando) {
+                        atualizarInteracao();
+                    } else {
+                        adicionarInteracao(chamadoId, mensagem);
+                    }
+                }
+            });
+            
+            document.getElementById('resolverChamadoBtn').addEventListener('click', () => {
+                resolverChamado(chamadoId);
+            });
+        }
+    } else if (usuarioLogado.tipo === 'cliente' && chamado.cliente.id === usuarioLogado.id) {
+        // Cliente pode adicionar comentário se chamado não estiver resolvido
+        if (chamado.status !== 'resolvido') {
+            document.getElementById('modalInteracao').innerHTML = `
+                <form id="interacaoChamadoForm">
+                    <div class="form-group">
+                        <label for="interacaoMensagem">Adicionar Comentário:</label>
+                        <textarea id="interacaoMensagem" rows="3" required></textarea>
+                    </div>
+                    <button type="submit" class="btn">${interacaoEditando ? 'Atualizar' : 'Enviar Comentário'}</button>
+                </form>
+            `;
+            
+            document.getElementById('interacaoChamadoForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const mensagem = document.getElementById('interacaoMensagem').value.trim();
+                if (mensagem) {
+                    if (interacaoEditando) {
+                        atualizarInteracao();
+                    } else {
+                        adicionarInteracao(chamadoId, mensagem);
+                    }
+                }
+            });
+        }
+    }
+}
+
+// Fechar modal
+closeModal.addEventListener('click', () => {
+    chamadoModal.style.display = 'none';
+});
+
+// Fechar modal ao clicar fora
+window.addEventListener('click', (e) => {
+    if (e.target === chamadoModal) {
+        chamadoModal.style.display = 'none';
+    }
+});
+
+// Técnico assume o chamado
+function assumirChamado(chamadoId) {
+    const chamadoIndex = chamadosDB.findIndex(c => c.id === chamadoId);
+    if (chamadoIndex === -1) return;
+    
+    // Atualizar status e técnico responsável
+    chamadosDB[chamadoIndex].status = 'andamento';
+    chamadosDB[chamadoIndex].tecnico = {
+        id: usuarioLogado.id,
+        nome: usuarioLogado.nome,
+        email: usuarioLogado.email
+    };
+    
+    // Adicionar interação automática
+    chamadosDB[chamadoIndex].interacoes.push({
+        autor: {
+            id: usuarioLogado.id,
+            nome: usuarioLogado.nome,
+            tipo: usuarioLogado.tipo
+        },
+        mensagem: 'Chamado assumido pelo técnico.',
+        data: new Date().toISOString()
+    });
+    
+    localStorage.setItem('chamadosDB', JSON.stringify(chamadosDB));
+    
+    // Atualizar interface
+    abrirModalChamado(chamadoId);
+    carregarChamados();
+}
+
+// Adicionar interação ao chamado
+function adicionarInteracao(chamadoId, mensagem) {
+    const chamadoIndex = chamadosDB.findIndex(c => c.id === chamadoId);
+    if (chamadoIndex === -1) return;
+    
+    chamadosDB[chamadoIndex].interacoes.push({
+        autor: {
+            id: usuarioLogado.id,
+            nome: usuarioLogado.nome,
+            tipo: usuarioLogado.tipo
+        },
+        mensagem,
+        data: new Date().toISOString()
+    });
+    
+    localStorage.setItem('chamadosDB', JSON.stringify(chamadosDB));
+    
+    // Atualizar modal e limpar campo
+    abrirModalChamado(chamadoId);
+    document.getElementById('interacaoMensagem').value = '';
+}
+
+// Técnico resolve o chamado
+function resolverChamado(chamadoId) {
+    const chamadoIndex = chamadosDB.findIndex(c => c.id === chamadoId);
+    if (chamadoIndex === -1) return;
+    
+    // Atualizar status
+    chamadosDB[chamadoIndex].status = 'resolvido';
+    
+    // Adicionar interação automática
+    chamadosDB[chamadoIndex].interacoes.push({
+        autor: {
+            id: usuarioLogado.id,
+            nome: usuarioLogado.nome,
+            tipo: usuarioLogado.tipo
+        },
+        mensagem: 'Chamado resolvido pelo técnico.',
+        data: new Date().toISOString()
+    });
+    
+    localStorage.setItem('chamadosDB', JSON.stringify(chamadosDB));
+    
+    // Atualizar interface
+    abrirModalChamado(chamadoId);
+    carregarChamados();
+}
+
+// Eventos de filtro
+document.addEventListener('DOMContentLoaded', () => {
+    // Evento para filtro de "Meus Chamados"
+    document.getElementById('filtroStatus')?.addEventListener('change', () => {
+        aplicarFiltroMeusChamados();
+    });
+    
+    // Evento para filtro de "Todos os Chamados"
+    document.getElementById('filtroStatusTodos')?.addEventListener('change', () => {
+        aplicarFiltroTodosChamados();
+    });
+});
