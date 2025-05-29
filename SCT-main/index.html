@@ -80,7 +80,7 @@
                 <li><a href="#" class="nav-link active" data-section="abrir-chamado">Abrir Chamado</a></li>
                 <li><a href="#" class="nav-link" data-section="meus-chamados">Meus Chamados</a></li>
                 <li><a href="#" class="nav-link" data-section="todos-chamados" id="todosChamadosLink">Todos Chamados</a></li>
-                <li><a href="#" class="nav-link" data-section="painel-admin">Painel Admin</a></li>
+                <li><a href="#" class="nav-link" data-section="relatorios-tecnico">Relatórios</a></li>
             </ul>
         </nav>
         
@@ -217,6 +217,53 @@
                     <!-- Chamados serão carregados aqui via JavaScript -->
                 </div>
             </section>
+
+            <!-- Seção para relatórios do técnico -->
+<section id="relatorios-tecnico" class="content-section">
+    <h2>Relatórios</h2>
+    
+    <div class="filtros">
+        <div class="form-group">
+            <label for="filtroDataInicio">De:</label>
+            <input type="date" id="filtroDataInicio">
+        </div>
+        <div class="form-group">
+            <label for="filtroDataFim">Até:</label>
+            <input type="date" id="filtroDataFim">
+        </div>
+        <button id="aplicarFiltroRelatorio" class="btn">Aplicar</button>
+    </div>
+    
+    <div class="estatisticas-container">
+        <div class="estatistica-card">
+            <h3>Meus Chamados Abertos</h3>
+            <div class="estatistica-valor" id="meusAbertos">0</div>
+        </div>
+        <div class="estatistica-card">
+            <h3>Meus Chamados em Andamento</h3>
+            <div class="estatistica-valor" id="meusAndamento">0</div>
+        </div>
+        <div class="estatistica-card">
+            <h3>Meus Chamados Resolvidos</h3>
+            <div class="estatistica-valor" id="meusResolvidos">0</div>
+        </div>
+        <div class="estatistica-card">
+            <h3>Tempo Médio de Resolução</h3>
+            <div class="estatistica-valor" id="meuTempoMedio">0h</div>
+        </div>
+    </div>
+    
+    <div class="graficos-container">
+        <div class="grafico-card">
+            <h3>Meus Chamados por Status</h3>
+            <canvas id="graficoMeusStatus"></canvas>
+        </div>
+        <div class="grafico-card">
+            <h3>Meus Chamados por Categoria</h3>
+            <canvas id="graficoMinhasCategorias"></canvas>
+        </div>
+    </div>
+</section>
             
             <!-- Modal para interação com chamado -->
             <div id="chamadoModal" class="modal">

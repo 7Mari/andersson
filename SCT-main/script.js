@@ -110,30 +110,22 @@ function entrarNoDashboard() {
     
     userNameDisplay.textContent = usuarioLogado.nome;
     
+    // Ocultar/mostrar itens conforme tipo de usuário
     if (usuarioLogado.tipo === 'cliente') {
         document.querySelector('[data-section="abrir-chamado"]').parentElement.style.display = 'block';
         document.querySelector('[data-section="meus-chamados"]').parentElement.style.display = 'block';
-        todosChamadosLink.parentElement.style.display = 'none';
-        document.querySelector('[data-section="painel-admin"]').parentElement.style.display = 'none';
+        document.querySelector('[data-section="todos-chamados"]').parentElement.style.display = 'none';
+        document.querySelector('[data-section="relatorios-tecnico"]').parentElement.style.display = 'none';
         
         document.querySelector('[data-section="meus-chamados"]').classList.add('active');
-        document.querySelector('[data-section="abrir-chamado"]').classList.remove('active');
-    } else if (usuarioLogado.tipo === 'tecnico') {
+    } else {
+        // Para técnicos
         document.querySelector('[data-section="abrir-chamado"]').parentElement.style.display = 'none';
         document.querySelector('[data-section="meus-chamados"]').parentElement.style.display = 'none';
-        todosChamadosLink.parentElement.style.display = 'block';
-        document.querySelector('[data-section="painel-admin"]').parentElement.style.display = 'none';
+        document.querySelector('[data-section="todos-chamados"]').parentElement.style.display = 'block';
+        document.querySelector('[data-section="relatorios-tecnico"]').parentElement.style.display = 'block';
         
         document.querySelector('[data-section="todos-chamados"]').classList.add('active');
-    } else {
-        // Se for admin (você pode adicionar um tipo 'admin' se necessário)
-        document.querySelector('[data-section="abrir-chamado"]').parentElement.style.display = 'none';
-        document.querySelector('[data-section="meus-chamados"]').parentElement.style.display = 'none';
-        todosChamadosLink.parentElement.style.display = 'none';
-        document.querySelector('[data-section="painel-admin"]').parentElement.style.display = 'block';
-        
-        document.querySelector('[data-section="painel-admin"]').classList.add('active');
-        carregarPainelAdmin();
     }
     
     carregarChamados();
@@ -184,54 +176,32 @@ document.addEventListener('DOMContentLoaded', () => {
 // Navegação entre seções do dashboard
 document.querySelectorAll('.nav-link').forEach(link => {
     link.addEventListener('click', (e) => {
-        
-        if (usuarioLogado.tipo === 'tecnico' && link.getAttribute('data-section') === 'meus-chamados') {
-            e.preventDefault();
-            return;
-        }
-       
-
-        // Verificar se o usuário é cliente tentando acessar áreas restritas
+        // Verificar permissões
         if (usuarioLogado.tipo === 'cliente' && 
             (link.getAttribute('data-section') === 'todos-chamados' || 
-             link.getAttribute('data-section') === 'painel-admin')) {
+             link.getAttribute('data-section') === 'relatorios-tecnico')) {
             e.preventDefault();
             return;
         }
         
-        // Verificar se é técnico tentando acessar áreas restritas
-        if (usuarioLogado.tipo === 'tecnico' && 
-            (link.getAttribute('data-section') === 'abrir-chamado' || 
-             link.getAttribute('data-section') === 'meus-chamados' ||
-             link.getAttribute('data-section') === 'painel-admin')) {
-            return;
-        }
+        e.preventDefault();
 
-        // Bloquear acesso técnico a seções não permitidas
-        if (usuarioLogado.tipo === 'tecnico' && 
-            (link.getAttribute('data-section') === 'abrir-chamado' || 
-             link.getAttribute('data-section') === 'meus-chamados')) {
-            return;
-        }
-         e.preventDefault();
-        // Remover classe active de todos os links
+        // Atualizar navegação
         document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-        
-        // Adicionar classe active ao link clicado
         link.classList.add('active');
         
-        // Esconder todas as seções
         document.querySelectorAll('.content-section').forEach(section => {
             section.classList.remove('active');
         });
         
-        // Mostrar seção correspondente
         const sectionId = link.getAttribute('data-section');
         document.getElementById(sectionId).classList.add('active');
         
-        // Recarregar chamados quando mudar de seção
+        // Carregar conteúdo apropriado
         if (sectionId === 'meus-chamados' || sectionId === 'todos-chamados') {
             carregarChamados();
+        } else if (sectionId === 'relatorios-tecnico') {
+            carregarRelatoriosTecnico();
         }
     });
 });
@@ -320,24 +290,32 @@ function carregarChamados() {
     }
 }
 
-// Função para aplicar filtros no painel admin
-function aplicarFiltrosAdmin() {
-    atualizarPainelAdmin();
+// Variáveis para os gráficos
+let graficoMeusStatus = null;
+let graficoMinhasCategorias = null;
+
+// Adicione esta função para carregar os relatórios
+function carregarRelatoriosTecnico() {
+    if (!document.getElementById('relatorios-tecnico').classList.contains('active')) return;
+    
+    // Configurar filtros
+    document.getElementById('aplicarFiltroRelatorio').addEventListener('click', atualizarRelatoriosTecnico);
+    
+    // Carregar dados iniciais
+    atualizarRelatoriosTecnico();
 }
 
-// Função principal para atualizar o painel admin
-function atualizarPainelAdmin() {
+// Função para atualizar os relatórios com os filtros
+function atualizarRelatoriosTecnico() {
     const dataInicio = document.getElementById('filtroDataInicio').value;
     const dataFim = document.getElementById('filtroDataFim').value;
-    const tecnicoId = document.getElementById('filtroTecnicoAdmin').value;
-    const categoria = document.getElementById('filtroCategoriaAdmin').value;
     
-    // Filtrar chamados
-    let chamadosFiltrados = [...chamadosDB];
+    // Filtrar apenas os chamados do técnico logado
+    let meusChamados = chamadosDB.filter(c => c.tecnico && c.tecnico.id === usuarioLogado.id);
     
-    // Filtrar por datas
+    // Aplicar filtros de data
     if (dataInicio) {
-        chamadosFiltrados = chamadosFiltrados.filter(c => {
+        meusChamados = meusChamados.filter(c => {
             const dataAbertura = new Date(c.dataAbertura);
             const dataInicioObj = new Date(dataInicio);
             return dataAbertura >= dataInicioObj;
@@ -345,7 +323,7 @@ function atualizarPainelAdmin() {
     }
     
     if (dataFim) {
-        chamadosFiltrados = chamadosFiltrados.filter(c => {
+        meusChamados = meusChamados.filter(c => {
             const dataAbertura = new Date(c.dataAbertura);
             const dataFimObj = new Date(dataFim);
             dataFimObj.setDate(dataFimObj.getDate() + 1); // Inclui o dia final
@@ -353,26 +331,16 @@ function atualizarPainelAdmin() {
         });
     }
     
-    // Filtrar por técnico
-    if (tecnicoId !== 'todos') {
-        chamadosFiltrados = chamadosFiltrados.filter(c => c.tecnico?.id === tecnicoId);
-    }
-    
-    // Filtrar por categoria
-    if (categoria !== 'todos') {
-        chamadosFiltrados = chamadosFiltrados.filter(c => c.categoria === categoria);
-    }
-    
     // Calcular estatísticas
-    const totalAbertos = chamadosFiltrados.filter(c => c.status === 'aberto').length;
-    const totalAndamento = chamadosFiltrados.filter(c => c.status === 'andamento').length;
-    const totalResolvidos = chamadosFiltrados.filter(c => c.status === 'resolvido').length;
+    const meusAbertos = meusChamados.filter(c => c.status === 'aberto').length;
+    const meusAndamento = meusChamados.filter(c => c.status === 'andamento').length;
+    const meusResolvidos = meusChamados.filter(c => c.status === 'resolvido').length;
     
     // Calcular tempo médio de resolução (em horas)
     let tempoTotal = 0;
     let chamadosResolvidosComTempo = 0;
     
-    chamadosFiltrados.forEach(c => {
+    meusChamados.forEach(c => {
         if (c.status === 'resolvido' && c.interacoes.length > 0) {
             const dataAbertura = new Date(c.dataAbertura);
             const dataResolucao = new Date(c.interacoes[c.interacoes.length - 1].data);
@@ -383,19 +351,19 @@ function atualizarPainelAdmin() {
     });
     
     const tempoMedio = chamadosResolvidosComTempo > 0 ? (tempoTotal / chamadosResolvidosComTempo).toFixed(1) : 0;
-
+    
     // Atualizar estatísticas na tela
-    document.getElementById('totalAbertos').textContent = totalAbertos;
-    document.getElementById('totalAndamento').textContent = totalAndamento;
-    document.getElementById('totalResolvidos').textContent = totalResolvidos;
-    document.getElementById('tempoMedio').textContent = `${tempoMedio}h`;
+    document.getElementById('meusAbertos').textContent = meusAbertos;
+    document.getElementById('meusAndamento').textContent = meusAndamento;
+    document.getElementById('meusResolvidos').textContent = meusResolvidos;
+    document.getElementById('meuTempoMedio').textContent = `${tempoMedio}h`;
     
     // Atualizar gráficos
-    atualizarGraficos(chamadosFiltrados);
+    atualizarGraficosTecnico(meusChamados);
 }
 
-// Função para atualizar os gráficos
-function atualizarGraficos(chamados) {
+// Função para atualizar os gráficos do técnico
+function atualizarGraficosTecnico(chamados) {
     // Dados para gráfico de status
     const statusCounts = {
         aberto: chamados.filter(c => c.status === 'aberto').length,
@@ -411,15 +379,15 @@ function atualizarGraficos(chamados) {
     };
     
     // Configurações dos gráficos
-    const ctxStatus = document.getElementById('graficoStatus').getContext('2d');
-    const ctxCategorias = document.getElementById('graficoCategorias').getContext('2d');
+    const ctxStatus = document.getElementById('graficoMeusStatus').getContext('2d');
+    const ctxCategorias = document.getElementById('graficoMinhasCategorias').getContext('2d');
     
     // Destruir gráficos existentes
-    if (graficoStatus) graficoStatus.destroy();
-    if (graficoCategorias) graficoCategorias.destroy();
+    if (graficoMeusStatus) graficoMeusStatus.destroy();
+    if (graficoMinhasCategorias) graficoMinhasCategorias.destroy();
     
     // Criar gráfico de status
-    graficoStatus = new Chart(ctxStatus, {
+    graficoMeusStatus = new Chart(ctxStatus, {
         type: 'doughnut',
         data: {
             labels: ['Abertos', 'Em Andamento', 'Resolvidos'],
@@ -445,7 +413,7 @@ function atualizarGraficos(chamados) {
     });
     
     // Criar gráfico de categorias
-    graficoCategorias = new Chart(ctxCategorias, {
+    graficoMinhasCategorias = new Chart(ctxCategorias, {
         type: 'bar',
         data: {
             labels: ['Hardware', 'Software', 'Rede'],
