@@ -1,4 +1,6 @@
 // Banco de dados simulado
+let graficoStatus = null;
+let graficoCategorias = null;
 let usuariosDB = JSON.parse(localStorage.getItem('usuariosDB')) || [];
 let chamadosDB = JSON.parse(localStorage.getItem('chamadosDB')) || [];
 let usuarioLogado = null;
@@ -106,19 +108,59 @@ function entrarNoDashboard() {
     loginContainer.style.display = 'none';
     dashboardContainer.style.display = 'block';
     
-    // Mostrar nome do usuário
     userNameDisplay.textContent = usuarioLogado.nome;
     
-    // Se for cliente, ocultar link "Todos Chamados"
     if (usuarioLogado.tipo === 'cliente') {
-        todosChamadosLink.style.display = 'none';
+        document.querySelector('[data-section="abrir-chamado"]').parentElement.style.display = 'block';
+        document.querySelector('[data-section="meus-chamados"]').parentElement.style.display = 'block';
+        todosChamadosLink.parentElement.style.display = 'none';
+        document.querySelector('[data-section="painel-admin"]').parentElement.style.display = 'none';
+        
+        document.querySelector('[data-section="meus-chamados"]').classList.add('active');
+        document.querySelector('[data-section="abrir-chamado"]').classList.remove('active');
+    } else if (usuarioLogado.tipo === 'tecnico') {
+        document.querySelector('[data-section="abrir-chamado"]').parentElement.style.display = 'none';
+        document.querySelector('[data-section="meus-chamados"]').parentElement.style.display = 'none';
+        todosChamadosLink.parentElement.style.display = 'block';
+        document.querySelector('[data-section="painel-admin"]').parentElement.style.display = 'none';
+        
+        document.querySelector('[data-section="todos-chamados"]').classList.add('active');
     } else {
-        todosChamadosLink.style.display = 'block';
+        // Se for admin (você pode adicionar um tipo 'admin' se necessário)
+        document.querySelector('[data-section="abrir-chamado"]').parentElement.style.display = 'none';
+        document.querySelector('[data-section="meus-chamados"]').parentElement.style.display = 'none';
+        todosChamadosLink.parentElement.style.display = 'none';
+        document.querySelector('[data-section="painel-admin"]').parentElement.style.display = 'block';
+        
+        document.querySelector('[data-section="painel-admin"]').classList.add('active');
+        carregarPainelAdmin();
     }
     
-    // Carregar chamados
     carregarChamados();
 }
+
+function carregarPainelAdmin() {
+    if (!document.getElementById('painel-admin').classList.contains('active')) return;
+    
+    // Carregar técnicos no filtro
+    const filtroTecnico = document.getElementById('filtroTecnicoAdmin');
+    filtroTecnico.innerHTML = '<option value="todos">Todos Técnicos</option>';
+    
+    const tecnicos = usuariosDB.filter(u => u.tipo === 'tecnico');
+    tecnicos.forEach(tecnico => {
+        const option = document.createElement('option');
+        option.value = tecnico.id;
+        option.textContent = tecnico.nome;
+        filtroTecnico.appendChild(option);
+    });
+    
+    // Aplicar filtros
+    document.getElementById('aplicarFiltroAdmin').addEventListener('click', aplicarFiltrosAdmin);
+    
+    // Carregar dados iniciais
+    atualizarPainelAdmin();
+}
+
 
 // Evento de logout
 logoutBtn.addEventListener('click', () => {
@@ -132,7 +174,7 @@ logoutBtn.addEventListener('click', () => {
 // Verificar se há usuário logado ao carregar a página
 document.addEventListener('DOMContentLoaded', () => {
     const usuarioSalvo = sessionStorage.getItem('usuarioLogado');
-    
+
     if (usuarioSalvo) {
         usuarioLogado = JSON.parse(usuarioSalvo);
         entrarNoDashboard();
@@ -142,8 +184,36 @@ document.addEventListener('DOMContentLoaded', () => {
 // Navegação entre seções do dashboard
 document.querySelectorAll('.nav-link').forEach(link => {
     link.addEventListener('click', (e) => {
-        e.preventDefault();
         
+        if (usuarioLogado.tipo === 'tecnico' && link.getAttribute('data-section') === 'meus-chamados') {
+            e.preventDefault();
+            return;
+        }
+       
+
+        // Verificar se o usuário é cliente tentando acessar áreas restritas
+        if (usuarioLogado.tipo === 'cliente' && 
+            (link.getAttribute('data-section') === 'todos-chamados' || 
+             link.getAttribute('data-section') === 'painel-admin')) {
+            e.preventDefault();
+            return;
+        }
+        
+        // Verificar se é técnico tentando acessar áreas restritas
+        if (usuarioLogado.tipo === 'tecnico' && 
+            (link.getAttribute('data-section') === 'abrir-chamado' || 
+             link.getAttribute('data-section') === 'meus-chamados' ||
+             link.getAttribute('data-section') === 'painel-admin')) {
+            return;
+        }
+
+        // Bloquear acesso técnico a seções não permitidas
+        if (usuarioLogado.tipo === 'tecnico' && 
+            (link.getAttribute('data-section') === 'abrir-chamado' || 
+             link.getAttribute('data-section') === 'meus-chamados')) {
+            return;
+        }
+         e.preventDefault();
         // Remover classe active de todos os links
         document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
         
@@ -194,9 +264,16 @@ if (novoChamadoForm) {
         const titulo = document.getElementById('chamadoTitulo').value.trim();
         const descricao = document.getElementById('chamadoDescricao').value.trim();
         const urgencia = document.getElementById('chamadoUrgencia').value;
-        
+        const categoria = document.getElementById('chamadoCategoria').value;
+
         if (!titulo || !descricao) {
             showMessage(document.getElementById('chamadoMessage'), 'Por favor, preencha todos os campos', 'error');
+            return;
+        }
+
+        // Verificar se é técnico (proteção adicional)
+        if (usuarioLogado.tipo === 'tecnico') {
+            showMessage(document.getElementById('chamadoMessage'), 'Técnicos não podem abrir chamados', 'error');
             return;
         }
         
@@ -205,6 +282,7 @@ if (novoChamadoForm) {
             titulo,
             descricao,
             urgencia,
+            categoria,
             status: 'aberto',
             cliente: {
                 id: usuarioLogado.id,
@@ -242,19 +320,186 @@ function carregarChamados() {
     }
 }
 
+// Função para aplicar filtros no painel admin
+function aplicarFiltrosAdmin() {
+    atualizarPainelAdmin();
+}
+
+// Função principal para atualizar o painel admin
+function atualizarPainelAdmin() {
+    const dataInicio = document.getElementById('filtroDataInicio').value;
+    const dataFim = document.getElementById('filtroDataFim').value;
+    const tecnicoId = document.getElementById('filtroTecnicoAdmin').value;
+    const categoria = document.getElementById('filtroCategoriaAdmin').value;
+    
+    // Filtrar chamados
+    let chamadosFiltrados = [...chamadosDB];
+    
+    // Filtrar por datas
+    if (dataInicio) {
+        chamadosFiltrados = chamadosFiltrados.filter(c => {
+            const dataAbertura = new Date(c.dataAbertura);
+            const dataInicioObj = new Date(dataInicio);
+            return dataAbertura >= dataInicioObj;
+        });
+    }
+    
+    if (dataFim) {
+        chamadosFiltrados = chamadosFiltrados.filter(c => {
+            const dataAbertura = new Date(c.dataAbertura);
+            const dataFimObj = new Date(dataFim);
+            dataFimObj.setDate(dataFimObj.getDate() + 1); // Inclui o dia final
+            return dataAbertura <= dataFimObj;
+        });
+    }
+    
+    // Filtrar por técnico
+    if (tecnicoId !== 'todos') {
+        chamadosFiltrados = chamadosFiltrados.filter(c => c.tecnico?.id === tecnicoId);
+    }
+    
+    // Filtrar por categoria
+    if (categoria !== 'todos') {
+        chamadosFiltrados = chamadosFiltrados.filter(c => c.categoria === categoria);
+    }
+    
+    // Calcular estatísticas
+    const totalAbertos = chamadosFiltrados.filter(c => c.status === 'aberto').length;
+    const totalAndamento = chamadosFiltrados.filter(c => c.status === 'andamento').length;
+    const totalResolvidos = chamadosFiltrados.filter(c => c.status === 'resolvido').length;
+    
+    // Calcular tempo médio de resolução (em horas)
+    let tempoTotal = 0;
+    let chamadosResolvidosComTempo = 0;
+    
+    chamadosFiltrados.forEach(c => {
+        if (c.status === 'resolvido' && c.interacoes.length > 0) {
+            const dataAbertura = new Date(c.dataAbertura);
+            const dataResolucao = new Date(c.interacoes[c.interacoes.length - 1].data);
+            const diferenca = dataResolucao - dataAbertura;
+            tempoTotal += diferenca / (1000 * 60 * 60); // Converter para horas
+            chamadosResolvidosComTempo++;
+        }
+    });
+    
+    const tempoMedio = chamadosResolvidosComTempo > 0 ? (tempoTotal / chamadosResolvidosComTempo).toFixed(1) : 0;
+
+    // Atualizar estatísticas na tela
+    document.getElementById('totalAbertos').textContent = totalAbertos;
+    document.getElementById('totalAndamento').textContent = totalAndamento;
+    document.getElementById('totalResolvidos').textContent = totalResolvidos;
+    document.getElementById('tempoMedio').textContent = `${tempoMedio}h`;
+    
+    // Atualizar gráficos
+    atualizarGraficos(chamadosFiltrados);
+}
+
+// Função para atualizar os gráficos
+function atualizarGraficos(chamados) {
+    // Dados para gráfico de status
+    const statusCounts = {
+        aberto: chamados.filter(c => c.status === 'aberto').length,
+        andamento: chamados.filter(c => c.status === 'andamento').length,
+        resolvido: chamados.filter(c => c.status === 'resolvido').length
+    };
+    
+    // Dados para gráfico de categorias
+    const categoriasCounts = {
+        hardware: chamados.filter(c => c.categoria === 'hardware').length,
+        software: chamados.filter(c => c.categoria === 'software').length,
+        rede: chamados.filter(c => c.categoria === 'rede').length
+    };
+    
+    // Configurações dos gráficos
+    const ctxStatus = document.getElementById('graficoStatus').getContext('2d');
+    const ctxCategorias = document.getElementById('graficoCategorias').getContext('2d');
+    
+    // Destruir gráficos existentes
+    if (graficoStatus) graficoStatus.destroy();
+    if (graficoCategorias) graficoCategorias.destroy();
+    
+    // Criar gráfico de status
+    graficoStatus = new Chart(ctxStatus, {
+        type: 'doughnut',
+        data: {
+            labels: ['Abertos', 'Em Andamento', 'Resolvidos'],
+            datasets: [{
+                data: [statusCounts.aberto, statusCounts.andamento, statusCounts.resolvido],
+                backgroundColor: [
+                    '#cf5a4d',
+                    '#f0bf70',
+                    '#2ecc71'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+    
+    // Criar gráfico de categorias
+    graficoCategorias = new Chart(ctxCategorias, {
+        type: 'bar',
+        data: {
+            labels: ['Hardware', 'Software', 'Rede'],
+            datasets: [{
+                label: 'Chamados por Categoria',
+                data: [categoriasCounts.hardware, categoriasCounts.software, categoriasCounts.rede],
+                backgroundColor: [
+                    '#7d6aaa',
+                    '#6a8aaa',
+                    '#6aaa7d'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
 // Função simplificada para aplicar filtro aos meus chamados
 function aplicarFiltroMeusChamados() {
     if (!usuarioLogado || !listaMeusChamados) return;
     
-    const filtroStatus = document.getElementById('filtroStatus').value;
-    
-    // Filtrar chamados do usuário logado
-    let chamadosFiltrados = chamadosDB.filter(chamado => chamado.cliente.id === usuarioLogado.id);
-    
-    // Aplicar filtro de status se não for "todos"
-    if (filtroStatus !== 'todos') {
-        chamadosFiltrados = chamadosFiltrados.filter(chamado => chamado.status === filtroStatus);
-    }
+    const filtroStatus = document.getElementById('filtroStatus')?.value || 'todos';
+    const filtroCategoria = document.getElementById('filtroCategoria')?.value || 'todos';
+
+    let chamadosFiltrados = chamadosDB.filter(chamado => {
+        // Verificar se o chamado pertence ao usuário logado
+        const pertenceAoUsuario = chamado.cliente.id === usuarioLogado.id || 
+                                (usuarioLogado.tipo === 'tecnico' && chamado.tecnico?.id === usuarioLogado.id);
+        
+        // Aplicar filtro de status
+        const statusMatch = filtroStatus === 'todos' || chamado.status === filtroStatus;
+        
+        // Aplicar filtro de categoria
+        const categoriaMatch = filtroCategoria === 'todos' || chamado.categoria === filtroCategoria;
+        
+        return pertenceAoUsuario && statusMatch && categoriaMatch;
+    });
     
     // Ordenar por data (mais recente primeiro)
     chamadosFiltrados.sort((a, b) => new Date(b.dataAbertura) - new Date(a.dataAbertura));
@@ -267,14 +512,20 @@ function aplicarFiltroMeusChamados() {
 function aplicarFiltroTodosChamados() {
     if (!usuarioLogado || usuarioLogado.tipo !== 'tecnico' || !listaTodosChamados) return;
     
-    const filtroStatus = document.getElementById('filtroStatusTodos').value;
-    
-    // Começar com todos os chamados
+    const filtroStatus = document.getElementById('filtroStatusTodos')?.value || 'todos';
+    const filtroCategoria = document.getElementById('filtroCategoriaTodos')?.value || 'todos';
+
+    // Filtrar todos os chamados (não apenas os do usuário)
     let chamadosFiltrados = [...chamadosDB];
     
     // Aplicar filtro de status se não for "todos"
     if (filtroStatus !== 'todos') {
         chamadosFiltrados = chamadosFiltrados.filter(chamado => chamado.status === filtroStatus);
+    }
+
+    // Aplicar filtro de categoria se não for "todos"
+    if (filtroCategoria !== 'todos') {
+        chamadosFiltrados = chamadosFiltrados.filter(chamado => chamado.categoria === filtroCategoria);
     }
     
     // Ordenar por data (mais recente primeiro)
@@ -286,16 +537,28 @@ function aplicarFiltroTodosChamados() {
 
 // Função para renderizar chamados em uma lista
 function renderizarChamados(elementoLista, chamados) {
-    if (!elementoLista) return;
+    if (!elementoLista) {
+        console.error("Elemento lista não encontrado");
+        return;
+    }
     
-    if (chamados.length === 0) {
+    console.log("Chamados para renderizar:", chamados); // Debug
+    
+    if (!chamados || chamados.length === 0) {
         elementoLista.innerHTML = '<p class="no-results">Nenhum chamado encontrado</p>';
         return;
     }
     
-    elementoLista.innerHTML = chamados.map(chamado => criarCardChamado(chamado)).join('');
+    elementoLista.innerHTML = chamados.map(chamado => {
+        try {
+            return criarCardChamado(chamado);
+        } catch (e) {
+            console.error("Erro ao criar card para chamado:", chamado, e);
+            return "";
+        }
+    }).join('');
     
-    // Adicionar eventos de clique aos cards
+    // Adicionar eventos de clique
     elementoLista.querySelectorAll('.chamado-card').forEach(card => {
         card.addEventListener('click', () => {
             const chamadoId = card.getAttribute('data-id');
@@ -308,6 +571,7 @@ function renderizarChamados(elementoLista, chamados) {
 function criarCardChamado(chamado) {
     const statusClass = `status-${chamado.status}`;
     const urgenciaText = chamado.urgencia.charAt(0).toUpperCase() + chamado.urgencia.slice(1);
+    const categoriaText = chamado.categoria.charAt(0).toUpperCase() + chamado.categoria.slice(1);
     const dataFormatada = new Date(chamado.dataAbertura).toLocaleDateString();
     
     return `
@@ -316,7 +580,10 @@ function criarCardChamado(chamado) {
                 <span class="chamado-titulo">${chamado.titulo}</span>
                 <span class="chamado-status ${statusClass}">${formatarStatus(chamado.status)}</span>
             </div>
-            <div class="chamado-urgencia">Urgência: ${urgenciaText}</div>
+            <div class="chamado-info">
+                <span class="chamado-urgencia">Urgência: ${urgenciaText}</span>
+                <span class="chamado-categoria">Categoria: ${categoriaText}</span>
+            </div>
             <div class="chamado-descricao">${chamado.descricao.substring(0, 100)}${chamado.descricao.length > 100 ? '...' : ''}</div>
             <div class="chamado-data">Aberto em: ${dataFormatada}</div>
         </div>
@@ -442,12 +709,14 @@ function abrirModalChamado(chamadoId) {
     document.getElementById('modalTitulo').textContent = chamado.titulo;
     
     const urgenciaText = chamado.urgencia.charAt(0).toUpperCase() + chamado.urgencia.slice(1);
+    const categoriaText = chamado.categoria.charAt(0).toUpperCase() + chamado.categoria.slice(1);
     const dataFormatada = new Date(chamado.dataAbertura).toLocaleString();
     
     document.getElementById('modalConteudo').innerHTML = `
         <div class="chamado-info">
             <p><strong>Status:</strong> <span class="status-${chamado.status}">${formatarStatus(chamado.status)}</span></p>
             <p><strong>Urgência:</strong> ${urgenciaText}</p>
+            <p><strong>Categoria:</strong> ${categoriaText}</p>
             <p><strong>Aberto em:</strong> ${dataFormatada}</p>
             <p><strong>Cliente:</strong> ${chamado.cliente.nome}</p>
             ${chamado.tecnico ? `<p><strong>Técnico responsável:</strong> ${chamado.tecnico.nome}</p>` : ''}
@@ -517,6 +786,8 @@ function abrirModalChamado(chamadoId) {
     document.getElementById('modalInteracao').innerHTML = '';
 
     // Se for técnico
+
+    
     if (usuarioLogado.tipo === 'tecnico') {
         if (chamado.status === 'aberto') {
             // Botão para assumir chamado
@@ -686,9 +957,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('filtroStatus')?.addEventListener('change', () => {
         aplicarFiltroMeusChamados();
     });
+
+    document.getElementById('filtroCategoria')?.addEventListener('change', () => {
+        aplicarFiltroMeusChamados();
+    });
     
     // Evento para filtro de "Todos os Chamados"
     document.getElementById('filtroStatusTodos')?.addEventListener('change', () => {
+        aplicarFiltroTodosChamados();
+    });
+
+    document.getElementById('filtroCategoriaTodos')?.addEventListener('change', () => {
         aplicarFiltroTodosChamados();
     });
 });
